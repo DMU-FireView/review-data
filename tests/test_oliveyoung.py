@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from review_crawler.collectors.oliveyoung.collector import (
+from review_data.collectors.oliveyoung.collector import (
     OliveyoungCollector,
     _parse_date,
 )

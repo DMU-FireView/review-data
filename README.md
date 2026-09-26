@@ -1,23 +1,40 @@
-# ai-review-crawler
+# review-data
 
-커머스 플랫폼의 상품·리뷰를 수집해 표준 스키마(JSON)로 저장하는 모듈입니다.
+커머스 플랫폼의 상품·리뷰를 수집해 PostgreSQL 에 저장하고, 조회 API 로 제공하는 Data 서버입니다.
 
-로컬 수집·검증 단계이며, 완성된 `core/` + `collectors/` 는 나중에 본 서버(FastAPI)에 그대로 이식됩니다.
+전체 구조에서의 위치: **Flutter → Spring(BFF) → review-data → AI 분석**. 이 저장소는 상품·리뷰 원본 데이터의 소유자이며, Spring 은 화면 조합만, AI 는 분석만 담당합니다.
+
+## 수집 방식
+
+요청이 크롤링을 기다리지 않습니다.
+
+1. DB 에 데이터가 있고 TTL 이내면 **즉시 반환**합니다 (`fresh`).
+2. TTL 이 지났으면 수집 job 을 만들고, **마지막 정상 데이터를 함께 반환**합니다 (`stale`).
+3. 데이터가 아예 없으면 job 만 만들고 `202` 를 반환합니다 (`queued`).
+4. 워커가 job 을 가져가 크롤링하고 DB 를 갱신합니다.
+
+신선도는 상품과 리뷰를 따로 판단합니다(기본 상품 24h, 리뷰 6h). 상품만 성공하고 리뷰 수집이 실패했다면 다음 조회에서 다시 수집 대상이 됩니다.
 
 ## 담당
 
-| 담당자 | 플랫폼 | 폴더 |
-|---|---|---|
-| 김동환 | 에이블리, 오늘의집 | `collectors/ably`, `collectors/ohouse` |
-| 김하연 | 마켓컬리, G마켓 | `collectors/kurly`, `collectors/gmarket` |
-| 남정현 | 옥션, 무신사 | `collectors/auction`, `collectors/musinsa` |
-| 정빈 | 11번가, 올리브영 | `collectors/elevenst`, `collectors/oliveyoung` |
+| 담당자 | 플랫폼 | 폴더 | 상태 |
+|---|---|---|---|
+| 김동환 | 에이블리 | `collectors/ably` | 구현됨 |
+| 김동환 | 오늘의집 | `collectors/ohouse` | 구현됨 |
+| 김하연 | 마켓컬리 | `collectors/kurly` | 구현됨 |
+| 김하연 | G마켓 | `collectors/gmarket` | **미구현** |
+| 남정현 | 옥션 | `collectors/auction` | 구현됨 |
+| 남정현 | 무신사 | `collectors/musinsa` | 구현됨 |
+| 정빈 | 11번가 | `collectors/elevenst` | 구현됨 |
+| 정빈 | 올리브영 | `collectors/oliveyoung` | 구현됨 |
+
+구현 여부는 `crawler list` 로 확인할 수 있습니다. `collector.py` 가 비어 있으면 '아직 작업 전' 으로 보고 조용히 건너뜁니다.
 
 ## 시작하기
 
 ```bash
-git clone https://github.com/DMU-FireView/ai-review-crawler.git
-cd ai-review-crawler
+git clone https://github.com/DMU-FireView/review-data.git
+cd review-data
 
 python -m venv venv
 source venv/bin/activate        # Windows: venv\Scripts\activate
@@ -25,8 +42,17 @@ source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -e ".[dev]"
 playwright install chromium     # 최초 1회, 몇 분 걸립니다
 cp .env.example .env
+```
 
-crawler list                     # 등록된 collector 확인
+PostgreSQL 을 띄우고 스키마를 적용합니다. 접속 정보는 `.env` 의 `DATABASE_URL` 로 바꿀 수 있습니다.
+
+```bash
+docker run -d --name review-data-pg \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=review_data \
+  -p 5432:5432 postgres:16-alpine
+
+alembic upgrade head            # 테이블 생성
+crawler list                    # 등록된 collector 확인
 ```
 
 ## 명령어
@@ -36,10 +62,58 @@ crawler list                              # 등록된 collector 목록
 crawler collect                           # 대화형으로 플랫폼 선택 후 상품 수집
 crawler collect -k 텀블러 -n 30            # 키워드/개수 직접 지정
 crawler reviews elevenst 123456 -n 100    # 특정 상품의 리뷰 수집
-crawler serve                             # 결과 확인용 API 서버 (localhost:8000/docs)
+crawler worker                            # 수집 job 을 처리하는 워커 (Ctrl+C 로 종료)
+crawler worker --once                     # job 하나만 처리하고 종료
+crawler serve                             # API 서버 (localhost:8000/docs)
 ```
 
-수집 결과는 `data/{platform}/{products|reviews}_{타임스탬프}.json` 에 저장됩니다.
+`collect` 와 `reviews` 는 직접 수집해 바로 저장합니다. API 가 만든 job 을 처리하려면 `crawler worker` 를 띄워야 합니다 — 워커가 없으면 job 이 `pending` 으로 쌓이기만 합니다.
+
+## API
+
+```
+GET /api/v1/{platform}/products/{product_id}    상품 + 리뷰 조회 (fresh / stale / queued)
+GET /api/v1/jobs/{job_id}                       수집 job 상태 조회
+```
+
+리뷰 목록은 cursor 페이지네이션을 씁니다 (`?cursor=...&limit=20`).
+
+응답은 `status` 로 구분합니다.
+
+```json
+{ "status": "stale",
+  "product": { "platform": "elevenst", "product_id": "123456", "name": "..." },
+  "reviews": { "items": [], "next_cursor": null },
+  "job":     { "id": 7, "status": "pending", "product_status": "pending", "review_status": "pending" } }
+```
+
+오류는 엔드포인트와 무관하게 같은 형식입니다. `detail` 에는 원인이 들어가고, 없으면 `null` 입니다.
+
+```json
+{ "error": { "code": "INVALID_CURSOR",
+             "message": "cursor 값이 올바르지 않습니다.",
+             "detail": "Expecting value: line 1 column 1 (char 0)" } }
+```
+
+`code` 는 `NOT_FOUND` · `INVALID_CURSOR` · `VALIDATION_ERROR` · `BAD_REQUEST` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_SUPPORTED` · `INTERNAL_ERROR` 중 하나입니다.
+
+## 테스트
+
+```bash
+pytest                          # DB 가 없으면 통합 테스트는 자동으로 skip 됩니다
+```
+
+DB 가 필요한 테스트까지 돌리려면 위 Postgres 컨테이너를 띄운 상태여야 합니다.
+
+## 구조
+
+```
+api/          엔드포인트, 앱 조립, 공통 오류 형식
+core/service  TTL 판단, job 생성, 응답 조립
+core/db       ORM 모델, repository(upsert · job claim/lease), 마이그레이션
+worker/       job claim → 수집 → 저장 → 완료 기록
+collectors/   플랫폼별 수집기
+```
 
 ## collector 만들기
 
@@ -56,9 +130,9 @@ crawler serve                             # 결과 확인용 API 서버 (localho
 ### 최소 예시
 
 ```python
-from review_crawler.core.base import BaseCollector
-from review_crawler.core.exceptions import NotSupportedError
-from review_crawler.core.models import Product, Review
+from review_data.core.base import BaseCollector
+from review_data.core.exceptions import NotSupportedError
+from review_data.core.models import Product, Review
 
 
 class KurlyCollector(BaseCollector):
@@ -98,7 +172,7 @@ class KurlyCollector(BaseCollector):
 `BrowserCollector` 를 상속하면 Playwright 를 쓸 수 있습니다. `self.client`(httpx)도 그대로 사용 가능하므로, 상품은 API·리뷰는 렌더링 같은 혼합 방식도 됩니다.
 
 ```python
-from review_crawler.core.browser import BrowserCollector
+from review_data.core.browser import BrowserCollector
 
 
 class MusinsaCollector(BrowserCollector):
@@ -113,4 +187,6 @@ class MusinsaCollector(BrowserCollector):
         ...
 ```
 
-브라우저는 collector 당 1개만
+브라우저는 collector 당 1개만 띄우고 재사용합니다. 페이지가 필요할 때마다 `self.page()` 컨텍스트를 쓰면 블록을 벗어날 때 자동으로 닫힙니다.
+
+브라우저 기반 collector 는 수집마다 Chromium 을 띄우므로, 워커에서 동시 실행 수를 따로 제한합니다(기본 1건). 설정값은 `core/settings.py` 의 `max_concurrent_browser_jobs_per_platform` 입니다.

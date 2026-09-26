@@ -2,9 +2,10 @@
 
 from datetime import datetime
 
+import pytest
 from bs4 import BeautifulSoup
 
-from review_crawler.collectors.elevenst.collector import ElevenstCollector, _to_int
+from review_data.collectors.elevenst.collector import ElevenstCollector, _to_int
 
 # 실제 응답에서 축약한 리뷰 한 건 조각
 REVIEW_LI = """
@@ -103,3 +104,25 @@ async def test_search_empty_keyword_returns_empty():
 
 async def test_reviews_limit_zero_returns_empty():
     assert await _collector().get_reviews("123", limit=0) == []
+
+
+def test_get_product_rejects_page_without_product_data():
+    """없는 상품에도 200 을 주는 플랫폼 특성 때문에, JSON-LD 가 없으면 실패로 봐야 한다.
+
+    이름 없는 Product 를 만들어 넘기면 job 이 성공으로 기록되고 빈 row 가 저장된다.
+    """
+    collector = ElevenstCollector()
+    assert collector._extract_ld_json("<html><body>없는 상품</body></html>") == {}
+
+
+def test_product_model_rejects_blank_required_fields():
+    """collector 가 실수로 빈 값을 넘겨도 모델에서 걸러져야 한다."""
+    from pydantic import ValidationError
+
+    from review_data.core.models import Product, Review
+
+    with pytest.raises(ValidationError):
+        Product(platform="elevenst", product_id="1", name="", url="https://x")
+
+    with pytest.raises(ValidationError):
+        Review(platform="elevenst", product_id="1", review_id="r1", content="")

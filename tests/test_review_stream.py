@@ -7,19 +7,19 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from review_crawler.api import app as app_module
-from review_crawler.api.sse import (
+from review_data.api import app as app_module
+from review_data.api.sse import (
     classify_error,
     format_sse,
     parse_last_event_id,
 )
-from review_crawler.core.base import BaseCollector
-from review_crawler.core.exceptions import (
+from review_data.core.base import BaseCollector
+from review_data.core.exceptions import (
     MissingCredentialError,
     NotSupportedError,
     ParseError,
 )
-from review_crawler.core.models import Review
+from review_data.core.models import Review
 
 
 def make_review(review_id: str) -> Review:

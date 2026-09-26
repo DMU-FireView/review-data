@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from review_crawler.collectors.kurly.collector import KurlyCollector
+from review_data.collectors.kurly.collector import KurlyCollector
 
 
 def test_platform_name() -> None:
