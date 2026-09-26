@@ -101,6 +101,33 @@ GET /api/v1/jobs/{job_id}                       수집 job 상태 조회
 
 `code` 는 `NOT_FOUND` · `INVALID_CURSOR` · `VALIDATION_ERROR` · `BAD_REQUEST` · `UNAUTHORIZED` · `FORBIDDEN` · `NOT_SUPPORTED` · `INTERNAL_ERROR` 중 하나입니다.
 
+## Docker 로 실행
+
+Python·Chromium·Postgres 를 따로 설치하지 않고 한 번에 띄웁니다. API 는 `localhost:8000/docs`.
+
+```bash
+cp .env.example .env
+docker compose up --build       # Postgres → 마이그레이션 → API + 워커
+docker compose logs -f worker   # 수집 진행 상황
+docker compose down             # 종료 (데이터는 볼륨에 남음, 지우려면 -v)
+```
+
+## 배포
+
+`main` 에 머지되면 GitHub Actions 가 이미지를 GHCR 에 올리고 GCP VM 에서 새 이미지로 교체합니다. PR 에서는 테스트와 이미지 빌드만 확인합니다.
+
+서버 최초 1회 준비:
+
+1. VM 에 Docker 설치, `~/review-data/.env` 작성 (`POSTGRES_PASSWORD`, `INTERNAL_TOKEN` 은 반드시 바꿀 것)
+2. 저장소 Secrets 에 `GCP_VM_HOST`, `GCP_VM_USER`, `GCP_VM_SSH_KEY` 등록
+
+문제가 생기면 서버에서 이전 커밋 이미지로 되돌립니다.
+
+```bash
+cd ~/review-data
+IMAGE=ghcr.io/dmu-fireview/review-data:<이전 커밋 해시> docker compose up -d --no-build
+```
+
 ## 테스트
 
 ```bash

@@ -28,7 +28,8 @@ app = typer.Typer(help="커머스 리뷰 수집 도구", no_args_is_help=True)
 
 
 def _require_env() -> None:
-    if not env_file_exists():
+    # 컨테이너는 .env 파일 없이 환경변수로 설정을 주입하므로, 접속 정보가 이미 있으면 통과시킨다.
+    if not env_file_exists() and "DATABASE_URL" not in os.environ:
         typer.secho(f"\n❌ .env 파일이 없습니다: {ENV_FILE}", fg=typer.colors.RED, bold=True)
         typer.echo("   프로젝트 루트에서 아래 명령을 실행하세요:\n")
         typer.echo("     cp .env.example .env\n")

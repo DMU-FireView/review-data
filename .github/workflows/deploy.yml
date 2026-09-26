@@ -1,0 +1,83 @@
+name: Deploy
+
+# main 에 머지되면 이미지를 GHCR 에 올리고 GCP VM 에서 새 이미지로 교체한다.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/dmu-fireview/review-data
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      # compose 파일도 코드와 함께 바뀌므로 매 배포마다 서버에 다시 올린다. .env 는 서버에만 있다.
+      - uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_VM_SSH_KEY }}
+          source: docker-compose.yml
+          target: ~/review-data
+      - uses: appleboy/ssh-action@v1.2.0
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+          TAG: ${{ github.sha }}
+        with:
+          host: ${{ secrets.GCP_VM_HOST }}
+          username: ${{ secrets.GCP_VM_USER }}
+          key: ${{ secrets.GCP_VM_SSH_KEY }}
+          envs: GHCR_TOKEN,GHCR_USER,TAG,IMAGE
+          script: |
+            set -e
+            cd ~/review-data
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+            # 커밋 해시로 고정해 두면 문제가 생겼을 때 이전 해시로 되돌릴 수 있다.
+            export IMAGE="$IMAGE:$TAG"
+            docker compose pull
+            docker compose up -d --no-build --remove-orphans
+            docker logout ghcr.io
+            docker image prune -f
+            # API 가 실제로 떴는지 확인한다. 실패하면 배포 job 도 실패로 남는다.
+            for i in $(seq 1 30); do
+              curl -fsS localhost:8000/health && exit 0
+              sleep 2
+            done
+            docker compose logs --tail 50 api migrate
+            exit 1
