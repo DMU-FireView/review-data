@@ -76,6 +76,10 @@ GET /api/v1/{platform}/products/{product_id}    상품 + 리뷰 조회 (fresh / 
 GET /api/v1/jobs/{job_id}                       수집 job 상태 조회
 ```
 
+`INTERNAL_TOKEN`을 설정하면 모든 API 호출에 같은 값의 `X-Internal-Token` 헤더가
+필요합니다. 값을 비우면 로컬 개발을 위해 인증을 검사하지 않으며, `/health`와 API 문서
+경로는 항상 인증 없이 접근할 수 있습니다. Swagger의 Authorize 버튼에도 토큰을 넣을 수 있습니다.
+
 리뷰 목록은 cursor 페이지네이션을 씁니다 (`?cursor=...&limit=20`).
 
 응답은 `status` 로 구분합니다.
