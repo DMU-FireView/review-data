@@ -15,3 +15,5 @@ dist/
 # 수집 데이터는 커밋하지 않음 (공유용 샘플만 예외)
 data/**/*.json
 !data/**/sample.json
+# uv 로컬 환경 부산물 (설치 절차는 pip 기준)
+uv.lock
