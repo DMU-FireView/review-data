@@ -40,6 +40,11 @@ def _test_database_url() -> str:
 
 DATABASE_URL = _test_database_url()
 
+# fixture 엔진만 테스트 DB 를 보면 부족하다. API(lifespan)와 CLI 는 get_settings() 로 직접
+# 엔진을 만들므로, 설정 자체를 테스트 DB 로 돌려놓지 않으면 개발 DB 에 테스트 데이터가 쌓인다.
+os.environ["DATABASE_URL"] = DATABASE_URL
+get_settings.cache_clear()
+
 
 async def _ensure_test_database() -> None:
     """테스트 DB 가 없으면 만든다. CREATE DATABASE 는 트랜잭션 밖에서만 된다."""
