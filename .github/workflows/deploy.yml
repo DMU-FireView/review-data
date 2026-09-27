@@ -46,13 +46,13 @@ jobs:
       packages: read
     steps:
       - uses: actions/checkout@v4
-      # compose 파일도 코드와 함께 바뀌므로 매 배포마다 서버에 다시 올린다. .env 는 서버에만 있다.
+      # compose 파일과 Caddyfile 도 코드와 함께 바뀌므로 매 배포마다 서버에 다시 올린다. .env 는 서버에만 있다.
       - uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.GCP_VM_HOST }}
           username: ${{ secrets.GCP_VM_USER }}
           key: ${{ secrets.GCP_VM_SSH_KEY }}
-          source: docker-compose.yml
+          source: docker-compose.yml,Caddyfile
           target: ~/review-data
       - uses: appleboy/ssh-action@v1.2.0
         env:

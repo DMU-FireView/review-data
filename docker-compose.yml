@@ -2,6 +2,7 @@
 #
 # 로컬:  docker compose up --build
 # 서버:  docker compose pull && docker compose up -d   (이미지는 CI 가 GHCR 에 올린다)
+#        서버 .env 에 COMPOSE_PROFILES=proxy, DATA_DOMAIN=<도메인> 을 두면 Caddy 가 HTTPS 로 연다.
 #
 # 필요한 값은 같은 폴더의 .env 에서 읽는다 (.env.example 참고).
 
@@ -43,8 +44,9 @@ services:
 
   api:
     <<: *app
+    # 외부에는 Caddy(443)로만 연다. 127.0.0.1 에만 묶어 방화벽 설정과 무관하게 8000 은 서버 안에서만 보인다.
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -69,5 +71,28 @@ services:
     stop_signal: SIGINT
     mem_limit: 2g
 
+  # 서버에서만 켠다(COMPOSE_PROFILES=proxy). 로컬에서는 localhost:8000 으로 바로 붙는다.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      # 로컬에서 proxy 프로필을 켜면 localhost 용 자체 인증서로 뜬다.
+      DATA_DOMAIN: ${DATA_DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # 발급받은 인증서를 보관한다. 지우면 재발급하게 되고 Let's Encrypt 발급 한도에 걸릴 수 있다.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+    mem_limit: 128m
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

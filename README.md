@@ -119,7 +119,10 @@ docker compose down             # 종료 (데이터는 볼륨에 남음, 지우�
 서버 최초 1회 준비:
 
 1. VM 에 Docker 설치, `~/review-data/.env` 작성 (`POSTGRES_PASSWORD`, `INTERNAL_TOKEN` 은 반드시 바꿀 것)
-2. 저장소 Secrets 에 `GCP_VM_HOST`, `GCP_VM_USER`, `GCP_VM_SSH_KEY` 등록
+2. HTTPS 를 쓰려면 `.env` 에 `COMPOSE_PROFILES=proxy`, `DATA_DOMAIN=<도메인>` 추가, 도메인 A 레코드를 VM IP 로, 방화벽은 80·443 허용
+3. 저장소 Secrets 에 `GCP_VM_HOST`, `GCP_VM_USER`, `GCP_VM_SSH_KEY` 등록
+
+API 는 서버 안(127.0.0.1:8000)에만 열리고, 외부 요청은 Caddy 가 HTTPS 로 받아 넘깁니다. 인증서 발급·갱신은 자동입니다.
 
 문제가 생기면 서버에서 이전 커밋 이미지로 되돌립니다.
 

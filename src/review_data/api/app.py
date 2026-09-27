@@ -20,7 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.security import APIKeyHeader
 
-from review_data.api import v1
+from review_data.api import docs, v1
 from review_data.api.sse import (
     EVENT_DONE,
     EVENT_ERROR,
@@ -89,15 +89,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(
-    title="review-data",
+    title="review-data API",
     version="0.1.0",
+    description=docs.API_DESCRIPTION,
+    openapi_tags=docs.OPENAPI_TAGS,
+    # 새로고침해도 Authorize 에 넣은 토큰이 유지되게 한다.
+    swagger_ui_parameters={"persistAuthorization": True},
     lifespan=lifespan,
     dependencies=[Depends(require_internal_token)],
 )
 app.include_router(v1.router)
 
+_build_openapi = app.openapi
 
-@app.get("/health")
+
+def _openapi_with_public_paths() -> dict:
+    """전역 인증 의존성 때문에 모든 경로에 자물쇠가 붙는다.
+
+    실제로 토큰 없이 열리는 경로는 문서에서도 풀어 둔다.
+    """
+    schema = _build_openapi()
+    for path in _AUTH_EXEMPT_PATHS:
+        for operation in schema["paths"].get(path, {}).values():
+            operation["security"] = []
+    return schema
+
+
+app.openapi = _openapi_with_public_paths
+
+
+@app.get(
+    "/health",
+    tags=[docs.TAG_SYSTEM],
+    summary="상태 확인",
+    description="프로세스가 요청을 받을 수 있는지만 본다. 토큰 없이 열린다.",
+    response_model=docs.HealthOut,
+)
 async def health() -> dict[str, str]:
     """DB 상태와 무관하게 프로세스가 요청을 받을 수 있는지만 알린다."""
     return {"status": "ok"}
@@ -177,7 +204,14 @@ def _to_http_error(exc: Exception) -> HTTPException:
     return HTTPException(status_code=500, detail=f"{type(exc).__name__}: {exc}")
 
 
-@app.get("/platforms")
+@app.get(
+    "/platforms",
+    tags=[docs.TAG_SYSTEM],
+    summary="등록된 수집기 목록",
+    description="`platform` 자리에 쓸 수 있는 값들.",
+    response_model=docs.PlatformsOut,
+    responses=docs.AUTH_ERROR,
+)
 async def platforms() -> dict:
     registry, failures = _registry()
     return {
@@ -186,7 +220,13 @@ async def platforms() -> dict:
     }
 
 
-@app.get("/{platform}/search")
+@app.get(
+    "/{platform}/search",
+    tags=[docs.TAG_DIRECT],
+    summary="상품 검색",
+    description="키워드로 쇼핑몰을 바로 검색한다. 저장하지 않는다.",
+    responses=docs.AUTH_ERROR,
+)
 async def search(platform: str, keyword: str, limit: int = 20):
     collector_cls = _get_collector_cls(platform)
     try:
@@ -196,7 +236,14 @@ async def search(platform: str, keyword: str, limit: int = 20):
         raise _to_http_error(exc) from exc
 
 
-@app.get("/{platform}/products/{product_id}")
+@app.get(
+    "/{platform}/products/{product_id}",
+    tags=[docs.TAG_DIRECT],
+    summary="상품 정보 즉시 수집",
+    description="Spring 은 `/api/v1/{platform}/products/{product_id}` 를 쓴다. "
+    "이 경로는 저장 없이 바로 긁어온다.",
+    responses=docs.AUTH_ERROR,
+)
 async def product(platform: str, product_id: str):
     collector_cls = _get_collector_cls(platform)
     try:
@@ -206,7 +253,13 @@ async def product(platform: str, product_id: str):
         raise _to_http_error(exc) from exc
 
 
-@app.get("/{platform}/products/{product_id}/reviews")
+@app.get(
+    "/{platform}/products/{product_id}/reviews",
+    tags=[docs.TAG_DIRECT],
+    summary="리뷰 즉시 수집",
+    description="저장 없이 바로 긁어온다.",
+    responses=docs.AUTH_ERROR,
+)
 async def reviews(platform: str, product_id: str, limit: int = 50):
     collector_cls = _get_collector_cls(platform)
     try:
@@ -216,7 +269,15 @@ async def reviews(platform: str, product_id: str, limit: int = 50):
         raise _to_http_error(exc) from exc
 
 
-@app.get("/{platform}/products/{product_id}/reviews/stream")
+@app.get(
+    "/{platform}/products/{product_id}/reviews/stream",
+    tags=[docs.TAG_STREAM],
+    summary="리뷰 수집 SSE 스트림",
+    description="리뷰를 수집하는 대로 SSE 로 보낸다. 이벤트: `review`, `progress`, "
+    "`heartbeat`, `done`, `error`. 끊겼다가 다시 붙을 때는 `Last-Event-ID` 헤더를 준다.",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}, **docs.AUTH_ERROR},
+)
 async def reviews_stream(
     platform: str,
     product_id: str,

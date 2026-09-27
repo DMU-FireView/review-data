@@ -8,10 +8,11 @@ from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from review_data.api import docs
 from review_data.core.db.models import CollectionJob, ProductRow, ReviewRow
 from review_data.core.db.repository import InvalidCursorError
 from review_data.core.service.collection import CollectionResult, CollectionService
@@ -96,13 +97,25 @@ def _build_body(result: CollectionResult) -> dict:
     return body
 
 
-@router.get("/{platform}/products/{product_id}")
+@router.get(
+    "/{platform}/products/{product_id}",
+    tags=[docs.TAG_PRODUCTS],
+    summary="상품·리뷰 조회",
+    description="저장된 상품과 리뷰 한 페이지를 돌려준다. 오래됐거나 없으면 수집 job 을 만든다. "
+    "응답 `status` 로 fresh / stale / queued 를 구분한다.",
+    response_model=None,
+    responses=docs.PRODUCT_RESPONSES,
+)
 async def get_product(
-    platform: str,
-    product_id: str,
+    platform: Annotated[
+        str, Path(description="수집기 이름 (GET /platforms 참고)", examples=["kurly"])
+    ],
+    product_id: Annotated[str, Path(description="쇼핑몰의 상품 ID", examples=["1000146248"])],
     session: SessionDep,
-    cursor: str | None = None,
-    limit: int = Query(20, ge=1, le=100),
+    cursor: Annotated[
+        str | None, Query(description="이전 응답의 reviews.next_cursor. 첫 페이지는 비운다")
+    ] = None,
+    limit: Annotated[int, Query(ge=1, le=100, description="리뷰 페이지 크기")] = 20,
 ) -> JSONResponse:
     service = CollectionService(session)
     try:
@@ -119,8 +132,18 @@ async def get_product(
     return JSONResponse(status_code=status_code, content=_build_body(result))
 
 
-@router.get("/jobs/{job_id}")
-async def get_job(job_id: int, session: SessionDep) -> dict:
+@router.get(
+    "/jobs/{job_id}",
+    tags=[docs.TAG_JOBS],
+    summary="수집 job 상태 조회",
+    description="상품 조회 응답의 `job.id` 로 진행 상황을 확인한다. "
+    "`succeeded`·`partial` 이 되면 상품 조회를 다시 호출한다.",
+    response_model=None,
+    responses=docs.JOB_RESPONSES,
+)
+async def get_job(
+    job_id: Annotated[int, Path(description="상품 조회 응답의 job.id")], session: SessionDep
+) -> dict:
     job = await session.get(CollectionJob, job_id)
 
     if job is None:
