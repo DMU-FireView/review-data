@@ -7,15 +7,18 @@
 
 import asyncio
 import contextlib
+import secrets
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from functools import lru_cache
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Security
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.security import APIKeyHeader
 
 from review_data.api import v1
 from review_data.api.sse import (
@@ -37,6 +40,36 @@ from review_data.core.db.base import create_engine, create_session_factory
 from review_data.core.discovery import LoadFailure, discover
 from review_data.core.exceptions import CollectorError, NotSupportedError
 from review_data.core.models import Review
+from review_data.core.settings import get_settings
+
+_INTERNAL_TOKEN_HEADER = APIKeyHeader(
+    name="X-Internal-Token",
+    auto_error=False,
+    description="내부 서버 간 호출에 사용하는 공유 토큰",
+)
+_AUTH_EXEMPT_PATHS = frozenset({"/docs", "/redoc", "/openapi.json", "/health"})
+
+
+async def require_internal_token(
+    request: Request,
+    supplied_token: Annotated[str | None, Security(_INTERNAL_TOKEN_HEADER)],
+) -> None:
+    """배포 환경의 API를 내부 호출로 제한한다.
+
+    로컬 개발에서는 설정을 비워 기존 흐름을 유지하고, 운영 점검과 토큰 입력에
+    필요한 문서·health 경로는 인증 대상에서 제외한다.
+    """
+    expected_token = get_settings().internal_token
+    if request.url.path in _AUTH_EXEMPT_PATHS or not expected_token:
+        return
+    # str 끼리 비교하면 ASCII 가 아닌 헤더 값에서 TypeError(500)가 나므로 바이트로 비교한다.
+    if supplied_token is None or not secrets.compare_digest(
+        supplied_token.encode(), expected_token.encode()
+    ):
+        raise HTTPException(
+            status_code=401,
+            detail="유효한 X-Internal-Token이 필요합니다.",
+        )
 
 
 @asynccontextmanager
@@ -55,8 +88,19 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await engine.dispose()
 
 
-app = FastAPI(title="review-data", version="0.1.0", lifespan=lifespan)
+app = FastAPI(
+    title="review-data",
+    version="0.1.0",
+    lifespan=lifespan,
+    dependencies=[Depends(require_internal_token)],
+)
 app.include_router(v1.router)
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    """DB 상태와 무관하게 프로세스가 요청을 받을 수 있는지만 알린다."""
+    return {"status": "ok"}
 
 
 # 상태 코드만 있고 code 가 지정되지 않은 오류(기존 데모 라우트)를 위한 기본 매핑.

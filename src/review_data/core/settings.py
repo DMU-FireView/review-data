@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # PostgreSQL 접속 정보 (환경변수 DATABASE_URL 로 덮어쓸 수 있음)
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/review_data"
 
+    # Spring·AI 등 내부 서버만 API를 호출하도록 공유하는 토큰. 로컬 개발에서는
+    # 값을 비워 기존처럼 인증 없이 쓸 수 있다.
+    internal_token: str | None = None
+
     # 신선도 기준 시간(초). 상품 정보(가격/평점)보다 리뷰가 더 자주 바뀌므로 따로 둔다.
     # 둘 중 하나라도 오래됐으면 재수집 job을 만든다.
     product_ttl_seconds: int = 24 * 60 * 60

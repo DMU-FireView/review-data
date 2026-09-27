@@ -1,0 +1,73 @@
+# Data 서버 한 벌: Postgres → 마이그레이션 → API + 워커.
+#
+# 로컬:  docker compose up --build
+# 서버:  docker compose pull && docker compose up -d   (이미지는 CI 가 GHCR 에 올린다)
+#
+# 필요한 값은 같은 폴더의 .env 에서 읽는다 (.env.example 참고).
+
+x-app: &app
+  image: ${IMAGE:-ghcr.io/dmu-fireview/review-data:latest}
+  build: .
+  env_file: .env
+  environment:
+    # .env 의 DATABASE_URL(localhost)은 로컬 실행용이다. 컨테이너끼리는 서비스 이름으로 찾는다.
+    DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/review_data
+    # 로컬 .env 에서 브라우저를 보려고 HEADLESS=false 로 둔 값이 넘어오지 않게 고정한다.
+    HEADLESS: "true"
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: review_data
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d review_data"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    mem_limit: 512m
+    restart: unless-stopped
+
+  # 배포마다 한 번 돌고 끝난다. 스키마가 앞서 있어야 API·워커가 새 코드로 뜰 수 있다.
+  migrate:
+    <<: *app
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *app
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    mem_limit: 512m
+
+  worker:
+    <<: *app
+    # 화면 모드가 필요한 collector 를 위해 가상 화면을 먼저 띄운다. exec 로 워커가 PID 1 이 되어야
+    # 종료 신호를 직접 받는다.
+    command: ["sh", "-c", "Xvfb :99 -screen 0 1280x800x24 -nolisten tcp & exec crawler worker"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    # YAML 병합은 얕아서 environment 를 쓰면 공통 값을 통째로 덮는다. 공통 값도 다시 적는다.
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@db:5432/review_data
+      HEADLESS: "true"
+      DISPLAY: ":99"
+    # Chromium 은 /dev/shm 을 많이 쓴다. 기본 64MB 로는 페이지 렌더링 중 죽는다.
+    shm_size: 1gb
+    # 워커는 Ctrl+C(SIGINT)를 받아야 DB 연결을 정리하고 끝난다.
+    stop_signal: SIGINT
+    mem_limit: 2g
+
+volumes:
+  pgdata:
