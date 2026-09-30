@@ -1,4 +1,4 @@
-# data.beens.kr 같은 도메인으로 들어온 HTTPS 요청을 API 로 넘긴다.
+# data.re-view.kr 같은 도메인으로 들어온 HTTPS 요청을 API 로 넘긴다.
 # 인증서 발급·갱신(Let's Encrypt)과 HTTP → HTTPS 리다이렉트는 Caddy 가 자동으로 한다.
 {$DATA_DOMAIN} {
 	encode gzip
