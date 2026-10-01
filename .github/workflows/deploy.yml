@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/dmu-fireview/review-data
+  IMAGE: ghcr.io/fireviewlab/review-data
 
 jobs:
   build:
