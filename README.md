@@ -33,7 +33,7 @@
 ## 시작하기
 
 ```bash
-git clone https://github.com/DMU-FireView/review-data.git
+git clone https://github.com/FireViewLab/review-data.git
 cd review-data
 
 python -m venv venv
@@ -128,7 +128,7 @@ API 는 서버 안(127.0.0.1:8000)에만 열리고, 외부 요청은 Caddy 가 H
 
 ```bash
 cd ~/review-data
-IMAGE=ghcr.io/dmu-fireview/review-data:<이전 커밋 해시> docker compose up -d --no-build
+IMAGE=ghcr.io/fireviewlab/review-data:<이전 커밋 해시> docker compose up -d --no-build
 ```
 
 ## 테스트

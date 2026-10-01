@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  IMAGE: ghcr.io/dmu-fireview/review-data
+  IMAGE: ghcr.io/fireviewlab/review-data
 
 jobs:
   build:
@@ -71,6 +71,9 @@ jobs:
             # 커밋 해시로 고정해 두면 문제가 생겼을 때 이전 해시로 되돌릴 수 있다.
             export IMAGE="$IMAGE:$TAG"
             docker compose pull
+            # 서버에서 IMAGE 없이 compose 명령을 수동 실행하면 :latest 를 찾는다. 받은 이미지에
+            # latest 태그를 붙여 두어야 레지스트리 로그인이나 빌드 없이 같은 이미지를 쓴다.
+            docker tag "$IMAGE" "${IMAGE%:*}:latest"
             docker compose up -d --no-build --remove-orphans
             docker logout ghcr.io
             docker image prune -f
