@@ -1,0 +1,71 @@
+{
+  "contents": [
+    {
+      "id": 5049864928,
+      "reviewContent": "조립이 쉬웠고 소음이 없어요.",
+      "reviewScore": 5,
+      "createDate": "2026-08-24T23:41:06.346+00:00",
+      "productOptionContent": "사이즈: 슈퍼싱글 / 색상: 화이트",
+      "helpCount": 1,
+      "reviewAttaches": [
+        {
+          "reviewAttachmentType": "I",
+          "attachUrl": "https://phinf.pstatic.net/checkout.phinf/20260825_137/1787614196877et2xd_JPEG/ECA1B0EBA6BDEC84A4EBAA85EC849C1.jpg"
+        },
+        {
+          "reviewAttachmentType": "I",
+          "attachUrl": "https://phinf.pstatic.net/checkout.phinf/20260825_265/1787614202511L7VO6_JPEG/ED8FACEC9EA520EAB09CEBB489EC82ACECA784.jpg"
+        }
+      ],
+      "freeTrial": false,
+      "repurchase": false,
+      "maskedWriterId": "test****",
+      "writerId": "fake-writer",
+      "orderNo": "0000000000"
+    },
+    {
+      "id": 5071490604,
+      "reviewContent": "생각보다 크기가 커서 놀랐어요.",
+      "reviewScore": 1,
+      "createDate": "2026-09-24T22:59:21.241+00:00",
+      "productOptionContent": "사이즈: 슈퍼싱글 / 색상: 블랙",
+      "helpCount": null,
+      "reviewAttaches": [
+        {
+          "reviewAttachmentType": "M",
+          "attachUrl": "https://phinf.pstatic.net/image.nmv/shopnbuyer_2026_09_25_2521/9jgedNEIlK_03.jpg"
+        }
+      ],
+      "freeTrial": false,
+      "repurchase": false,
+      "maskedWriterId": "test****",
+      "writerId": "fake-writer",
+      "orderNo": "0000000000"
+    },
+    {
+      "id": 5056951090,
+      "reviewContent": "한 달 써보니 튼튼하네요.",
+      "reviewScore": 5,
+      "createDate": "2026-09-03T12:48:20.150+00:00",
+      "productOptionContent": "사이즈: 슈퍼싱글 / 색상: 화이트",
+      "helpCount": null,
+      "reviewAttaches": [
+        {
+          "reviewAttachmentType": "I",
+          "attachUrl": "https://phinf.pstatic.net/checkout.phinf/20260903_293/1788439690262Yaho7_JPEG/1000039009.jpg"
+        }
+      ],
+      "freeTrial": false,
+      "repurchase": false,
+      "maskedWriterId": "test****",
+      "writerId": "fake-writer",
+      "orderNo": "0000000000"
+    }
+  ],
+  "page": 1,
+  "size": 20,
+  "totalElements": 1091,
+  "totalPages": 55,
+  "first": true,
+  "last": false
+}

@@ -1,0 +1,30 @@
+{
+  "id": "6000252751",
+  "productNo": "5972194390",
+  "name": "지누스 1500H 침대 프레임 (슈퍼싱글)",
+  "salePrice": 190000,
+  "benefitsView": {
+    "discountedSalePrice": 152000
+  },
+  "channel": {
+    "channelUid": "2sWDwlB4wqRisSBxpyXQW",
+    "channelName": "지누스몰",
+    "channelSiteUrl": "zinus"
+  },
+  "category": {
+    "categoryId": "50003215",
+    "wholeCategoryName": "가구/인테리어>침실가구>침대>침대프레임"
+  },
+  "reviewAmount": {
+    "totalReviewCount": 1091,
+    "averageReviewScore": 4.65
+  },
+  "representImage": {
+    "url": "https://shop-phinf.pstatic.net/20250828_82/1756344423493erwFi_JPEG/10959341500902291_1572348562.jpg"
+  },
+  "naverShoppingSearchInfo": {
+    "brandName": "지누스",
+    "manufacturerName": "지누스"
+  },
+  "productStatusType": "SALE"
+}

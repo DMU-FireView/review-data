@@ -7,7 +7,7 @@
 # 필요한 값은 같은 폴더의 .env 에서 읽는다 (.env.example 참고).
 
 x-app: &app
-  image: ${IMAGE:-ghcr.io/dmu-fireview/review-data:latest}
+  image: ${IMAGE:-ghcr.io/fireviewlab/review-data:latest}
   build: .
   env_file: .env
   environment:
